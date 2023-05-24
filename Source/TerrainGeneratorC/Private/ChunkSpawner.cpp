@@ -21,11 +21,6 @@ AChunkSpawner::AChunkSpawner()
 void AChunkSpawner::BeginPlay()
 {
 	Super::BeginPlay();
-
-	FoliageSpawner = NewObject<AFoliageSpawner>();
-	FoliageSpawner->AttachToActor(this, FAttachmentTransformRules{EAttachmentRule::KeepRelative,false});
-	FoliageSpawner->InitFoliageSpawner();
-	
 	ChunkPositionsToLoad.Empty();
 	LoadedChunks.Empty();
 	ChunkIndex = 0;
@@ -127,7 +122,7 @@ void AChunkSpawner::CalculateChunkPositions()
 				{
 					LoadedChunk.Value->GetDynamicMeshComponent()->SetComplexAsSimpleCollisionEnabled(false);
 				}
-				if (Distance2D < 20000)
+				if (Distance2D < FoliageRenderDistance)
 				{
 					if(!LoadedChunk.Value->bIsFoliageGenerated)
 					{

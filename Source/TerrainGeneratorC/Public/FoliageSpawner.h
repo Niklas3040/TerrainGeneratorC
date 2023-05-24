@@ -33,5 +33,6 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	UStaticMesh* StaticMesh;
+	
 
 };

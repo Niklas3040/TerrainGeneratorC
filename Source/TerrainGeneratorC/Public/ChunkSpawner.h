@@ -37,10 +37,12 @@ public:
 	int ChunkRenderDistance = 20000;
 	UPROPERTY()
 	APawn* PlayerPawn = nullptr;
-	UPROPERTY()
-	AFoliageSpawner* FoliageSpawner = nullptr;
+	/*UPROPERTY()
+	AFoliageSpawner* FoliageSpawner = nullptr;*/
 	UPROPERTY(BlueprintReadOnly)
 	TArray<FFoliagePositions> AllFoliagePositions;
+	UPROPERTY(EditAnywhere)
+	int FoliageRenderDistance = 20000;
 	
 	
 	
