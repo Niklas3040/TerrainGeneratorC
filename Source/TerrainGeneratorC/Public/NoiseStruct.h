@@ -63,3 +63,18 @@ struct FFoliagePositions
 	FVector TriangleFaceNormal;
 };
 
+
+USTRUCT(BlueprintType)
+struct FTriangleStruct
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int id;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector Vector1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector Vector2;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector Vector3;
+};
+

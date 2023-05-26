@@ -43,7 +43,8 @@ public:
 	void InitChunk(AActor* ChunkSpawner);
 	void CreateCollision();
 	TArray<FFoliagePositions> GetFoliagePositions(int MinIterations, int MaxIterations);
-	
-	
+
+	UFUNCTION(BlueprintCallable, Category="ProceduralStuff")
+	TArray<FTriangleStruct> GenerateBuildingPositions();
 };
 

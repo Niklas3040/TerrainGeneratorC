@@ -26,6 +26,7 @@ AChunk::AChunk()
 	
 	ConstructorHelpers::FObjectFinder< UMaterialInterface> Material(TEXT("MaterialInstanceConstant'/Game/environment/WaterPlane/M_Toon_Water_Inst.M_Toon_Water_Inst'"));
 	Plane->SetMaterial(0, Material.Object);
+	Plane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	//GetDynamicMeshComponent()->EnableComplexAsSimpleCollision(); //TODO Collision
 }
 
@@ -192,7 +193,7 @@ void AChunk::CreateCollision()
 		0
 		
 	};
-	UGeometryScriptLibrary_CollisionFunctions::SetDynamicMeshCollisionFromMesh(GetDynamicMeshComponent()->GetDynamicMesh(),GetDynamicMeshComponent(),Options);
+	UGeometryScriptLibrary_CollisionFunctions::SetDynamicMeshCollisionFromMesh(GetDynamicMeshComponent()->GetDynamicMesh(),GetDynamicMeshComponent(), FGeometryScriptCollisionFromMeshOptions{});
 	FreeAllComputeMeshes();
 }
 
@@ -229,6 +230,28 @@ TArray<FFoliagePositions> AChunk::GetFoliagePositions(int MinIterations, int Max
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Outcome not Found!"))
 		}	
+	}
+	return ReturnArray;
+}
+
+
+TArray<FTriangleStruct> AChunk::GenerateBuildingPositions()
+{
+	UDynamicMesh* DynamicMesh = DynamicMeshComponent->GetDynamicMesh();
+	
+	TArray<FTriangleStruct> ReturnArray;
+	
+
+	for(int x = 0; x < ParentChunkSpawner->Resolution*2; x++)
+	{
+		FVector Vertex1, Vertex2, Vertex3;
+		bool bIsValidTriangle;
+		UGeometryScriptLibrary_MeshQueryFunctions::GetTrianglePositions(DynamicMesh, x, bIsValidTriangle, Vertex1, Vertex2, Vertex3);
+
+		if (bIsValidTriangle)
+		{
+			ReturnArray.Add(FTriangleStruct{x, Vertex1 + GetActorLocation(), Vertex2 + GetActorLocation(), Vertex3 + GetActorLocation()});	
+		}
 	}
 	return ReturnArray;
 }
