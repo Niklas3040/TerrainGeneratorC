@@ -8,7 +8,7 @@ public class TerrainGeneratorC : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "GeometryFramework","GeometryAlgorithms", "GeometryScriptingCore", "FastNoise", "FastNoiseGenerator" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "GeometryFramework","GeometryAlgorithms", "FastNoiseGenerator", "GeometryScriptingCore", "FastNoise", "RenderCore", "Projects", "RealtimeMeshComponent", "ProceduralMeshComponent"});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

@@ -4,3 +4,11 @@
 
 #include "CoreMinimal.h"
 
+#include "Modules/ModuleManager.h"
+
+class FTerrainGeneratorCModule : public IModuleInterface
+{
+public:
+	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
+};

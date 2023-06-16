@@ -2,5 +2,14 @@
 
 #include "TerrainGeneratorC.h"
 #include "Modules/ModuleManager.h"
+#include "Misc/Paths.h"
 
-IMPLEMENT_PRIMARY_GAME_MODULE( FDefaultGameModuleImpl, TerrainGeneratorC, "TerrainGeneratorC" );
+void FTerrainGeneratorCModule::StartupModule()
+{
+	FString ShaderDirectory = FPaths::Combine(FPaths::ProjectDir(), TEXT("Shaders"));
+	AddShaderSourceDirectoryMapping("/Project", ShaderDirectory);
+}
+
+void FTerrainGeneratorCModule::ShutdownModule(){}
+
+IMPLEMENT_PRIMARY_GAME_MODULE( FTerrainGeneratorCModule, TerrainGeneratorC, "TerrainGeneratorC" );

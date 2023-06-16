@@ -25,9 +25,15 @@ AChunk::AChunk()
 	Plane->SetStaticMesh(MeshAsset.Object);
 	
 	ConstructorHelpers::FObjectFinder< UMaterialInterface> Material(TEXT("MaterialInstanceConstant'/Game/environment/WaterPlane/M_Toon_Water_Inst.M_Toon_Water_Inst'"));
+
 	Plane->SetMaterial(0, Material.Object);
 	Plane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	//GetDynamicMeshComponent()->EnableComplexAsSimpleCollision(); //TODO Collision
+
+	ChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("rmc"));
+	ChildActor->SetupAttachment(GetRootComponent());
+	ChildActor->SetChildActorClass(ARMC_Chunk::StaticClass());
+	
 }
 
 
@@ -102,6 +108,12 @@ void AChunk::applyNoise(int seed, TArray<FBiomStruct> BiomStructs, float BiomFre
 	//UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormals(DynamicMesh, FGeometryScriptCalculateNormalsOptions{true, true});
 			
 	FTimerHandle TimerHandle;
+	
+	//NEW RMC STUFF
+	RMC = Cast<ARMC_Chunk>(ChildActor->GetChildActor());
+	RMC->Material = ChunkMaterial;
+	RMC->copyFromDynamicMesh(GetDynamicMeshComponent()->GetDynamicMesh(), true);
+	
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle, ParentChunkSpawner, &AChunkSpawner::SpawnNextChunk, 0.0000001f, false);
 	//CreateCollision();
 	//ChunkSpawner->SpawnNextChunk();
@@ -143,7 +155,7 @@ float AChunk::getBiomNoise(float x, float y, int NoiseSeed, int BiomSeed,float B
 	{
 		if (BiomStruct.enable)
 		{
-			const float Weight = (HumidityNoise - BiomStruct.Humidity) + (TemperatureNoise - BiomStruct.Temperature);
+			const float Weight = (HumidityNoise - BiomStruct.Humidity) + (TemperatureNoise - BiomStruct.Temperature);//(SineWaveWeightAlgorithm(HumidityNoise, BiomStruct.Humidity) + SineWaveWeightAlgorithm(TemperatureNoise, BiomStruct.Temperature)) / 2;
 			const float LayeredNoise = getLayeredNoise(NoiseSeed, BiomStruct.NoiseStructs, x, y, NoiseWrapper);
 			NoiseWeightStructs.Add(FNoiseWeightStruct{Weight, LayeredNoise});
 		
@@ -153,7 +165,7 @@ float AChunk::getBiomNoise(float x, float y, int NoiseSeed, int BiomSeed,float B
 	float BiomNoise = 0;
 	for (FNoiseWeightStruct WeightStruct : NoiseWeightStructs)
 	{
-		float actualWeight = FMath::Clamp(WeightStruct.weight/ SumWeights,-2,2); //Clamp Artifact Workaround (Kein plan was da abgeht aber bei Übergängen von Biomen gibt es Artifakte, da actualWeight und Sumweight da kleiner als 1 sind (TODO)
+		float actualWeight = FMath::Clamp(WeightStruct.weight/ SumWeights,-2,2);//WeightStruct.weight/ SumWeights; //Clamp Artifact Workaround (Kein plan was da abgeht aber bei Übergängen von Biomen gibt es Artifakte, da actualWeight und Sumweight da kleiner als 1 sind (TODO)
 
 		const float actualNoise = WeightStruct.Noise * actualWeight;
 		BiomNoise += actualNoise;
@@ -165,6 +177,7 @@ void AChunk::SetMaterial(UMaterialInterface* Material)
 {
 	if (Material)
 	{
+		ChunkMaterial = Material;
 		DynamicMeshComponent->SetMaterial(0, Material);
 	}
 }
@@ -195,6 +208,13 @@ void AChunk::CreateCollision()
 	};
 	UGeometryScriptLibrary_CollisionFunctions::SetDynamicMeshCollisionFromMesh(GetDynamicMeshComponent()->GetDynamicMesh(),GetDynamicMeshComponent(), FGeometryScriptCollisionFromMeshOptions{});
 	FreeAllComputeMeshes();
+}
+
+float AChunk::SineWaveWeightAlgorithm(float x, float h)
+{
+	float b = 1.5707963224218/h;
+	float c = h * 4;
+	return (0.5* sin(b* (x+c))+0.5);
 }
 
 TArray<FFoliagePositions> AChunk::GetFoliagePositions(int MinIterations, int MaxIterations)

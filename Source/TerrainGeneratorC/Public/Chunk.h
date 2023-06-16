@@ -13,6 +13,7 @@
 #include "FastNoiseWrapper.h"
 #include "DrawDebugHelpers.h"
 #include "NoiseStruct.h"
+#include "RMC_Chunk.h"
 #include "GeometryScript/CollisionFunctions.h"
 #include "Chunk.generated.h"
 
@@ -30,6 +31,12 @@ public:
 	UStaticMeshComponent* Plane;
 	UPROPERTY()
 	bool bIsFoliageGenerated = false;
+	UPROPERTY()
+	ARMC_Chunk* RMC;
+	UPROPERTY()
+	UChildActorComponent* ChildActor;
+	UPROPERTY()
+	UMaterialInterface* ChunkMaterial;
 	
 	AChunk();
 	virtual void Tick(float DeltaTime) override;
@@ -42,6 +49,7 @@ public:
 	void SetMaterial(UMaterialInterface* Material);
 	void InitChunk(AActor* ChunkSpawner);
 	void CreateCollision();
+	float SineWaveWeightAlgorithm(float x, float h);
 	TArray<FFoliagePositions> GetFoliagePositions(int MinIterations, int MaxIterations);
 
 	UFUNCTION(BlueprintCallable, Category="ProceduralStuff")
