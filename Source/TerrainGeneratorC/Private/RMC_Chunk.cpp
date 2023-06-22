@@ -1,75 +1,49 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
+
 #include "RMC_Chunk.h"
 
+#include "ChunkSpawnerRMC.h"
 #include "FastNoiseWrapper.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "RealtimeMeshLibrary.h"
 #include "UDynamicMesh.h"
 #include "GeometryScript/ListUtilityFunctions.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Kismet/KismetSystemLibrary.h"
 
+AChunkSpawnerRMC* ParentChunkSpawner = nullptr;
 
 ARMC_Chunk::ARMC_Chunk()
 {
 	RealtimeMeshComponent = CreateDefaultSubobject<URealtimeMeshComponent>(TEXT("RMC_Component"));
 	RealtimeMeshComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	MeshModifierNormals = NewObject<URuntimeMeshModifierNormals>();
+
+	Plane = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Plane"));
+	Plane->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	Plane->SetRelativeLocation(FVector{0.0f,0.0f,-200.0f});
+	
+	ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("StaticMesh'/Engine/BasicShapes/Plane.Plane'"));
+	Plane->SetStaticMesh(MeshAsset.Object);
+	
+	ConstructorHelpers::FObjectFinder<UMaterialInterface> WaterMaterial(TEXT("MaterialInstanceConstant'/Game/environment/WaterPlane/M_Toon_Water_Inst.M_Toon_Water_Inst'"));
+
+	Plane->SetMaterial(0, WaterMaterial.Object);
+	Plane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-FRealtimeMeshSimpleMeshData ARMC_Chunk::CalculateMeshData(int ChunkSize, int Resolution1D, int NoiseSeed, int BiomSeed, float BiomFrequency, TArray<FBiomStruct> BiomStructs)
+void ARMC_Chunk::InitChunk(AActor* ChunkSpawner)
 {
-	UFastNoiseWrapper* NoiseWrapper = NewObject<UFastNoiseWrapper>();
-	
-	TArray<int32> Triangles;
-	TArray<FVector> Positions;
-	TArray<FVector> Normals;
-	TArray<FVector> Tangents;
-	TArray<FVector> Binormals;
-	TArray<FLinearColor> Colours;
-	TArray<FVector2d> UV0;
+	ParentChunkSpawner = Cast<AChunkSpawnerRMC>(ChunkSpawner);
+	Plane->SetRelativeScale3D(FVector(ParentChunkSpawner->ChunkSize /100));
+	Plane->SetWorldLocation(GetActorLocation());
+}
 
-	Positions.SetNum((Resolution1D+1)*(Resolution1D+1));
 
-	const int QuadSize = ChunkSize/Resolution1D;
-	int Index = 0;
-	for (float y = 0; y <= Resolution1D; y++)
-	{
-		for (float x = 0; x <= Resolution1D; x++) {
-			float X = x * QuadSize;
-			float Y = y * QuadSize;
-			Positions[Index] = FVector{X, Y,getBiomNoise(X,Y,NoiseSeed, BiomSeed, BiomFrequency,BiomStructs, NoiseWrapper)};
-			Index++;
-		}
-	}
-	
-	Triangles.SetNum(Resolution1D * Resolution1D * 6);
-
-	int vert = 0;
-	int tris = 0;
-	
-	for (int y = 0; y < Resolution1D; y++)
-	{
-		for (int x = 0; x < Resolution1D; x++)
-		{
-			Triangles[tris] = vert;
-			Triangles[tris + 1] = vert + Resolution1D + 1;
-			Triangles[tris + 2] = vert + 1;
-			Triangles[tris + 3] = vert + 1;
-			Triangles[tris + 4] = vert + Resolution1D + 1;
-			Triangles[tris + 5] = vert + Resolution1D + 2;
-
-			vert++;
-			tris += 6;
-		}
-		vert++;
-	}
-
-	/*for (int x = 0; x < Positions.Num(); x++)
-	{
-		Normals.Add(FVector{0.0f, 0.0f, 1.0f});
-	}*/
-	Normals = CalculateNormals(Triangles, Positions);
-	
+/*void ARMC_Chunk::CalculateUV(int Resolution1D, const TArray<FVector>& Positions, TArray<FVector2d>& UV0)
+{
 	UV0.SetNum(Positions.Num());
 	int i = 0;
 	for (int x = 0; x <= Resolution1D; x++)
@@ -81,44 +55,86 @@ FRealtimeMeshSimpleMeshData ARMC_Chunk::CalculateMeshData(int ChunkSize, int Res
 			i++;
 		}
 	}
-	
-	FRealtimeMeshSimpleMeshData MeshData =
-	{
-		Triangles,
-		Positions,
-		Normals,
-		Tangents,
-		Binormals,
-		Colours,
-		UV0
-	};
-	return MeshData;
+}*/
+
+
+void ARMC_Chunk::DebugVertexNormal(FVector Normal, FVector Vertex) const
+{
+	const FVector Location = GetActorLocation();
+	const FVector VertexWorldLocation = Vertex + Location;
+	UKismetSystemLibrary::DrawDebugArrow(GetWorld(),VertexWorldLocation,Normal * 300.0f + VertexWorldLocation,1.0f,FLinearColor::Blue, 100.0f, 2.0f );
 }
 
-float ARMC_Chunk::getLayeredNoise(int seed, TArray<FNoiseStruct> noiseStructs, float x, float y, UFastNoiseWrapper* FastNoiseWrapper)
+FRealtimeMeshSimpleMeshData ARMC_Chunk::GetMeshDataForQuad()
+{
+	
+	const int QuadSize = ChunkSize/Resolution1D;
+	const FVector ActorLocation = GetActorLocation();
+	double x = X * QuadSize;
+	double y = Y * QuadSize;
+	double X1 = (X+1) * QuadSize;
+	double Y1 = (Y+1) * QuadSize;
+
+	TArray<FVector> Vertices = MeshData.Positions;
+	
+	const int QuadIndex = Vertices.Num();
+	Vertices.SetNum(QuadIndex + 6);
+	Vertices[QuadIndex] =	FVector{x, y, getBiomNoise(x+ActorLocation.X,y+ActorLocation.Y) };
+	Vertices[QuadIndex+1] = FVector{X1, y, getBiomNoise(X1+ActorLocation.X,y+ActorLocation.Y) };
+	Vertices[QuadIndex+2] = FVector{x, Y1, getBiomNoise(x+ActorLocation.X,Y1+ActorLocation.Y) };
+	
+	Vertices[QuadIndex+3] = FVector{X1, Y1, getBiomNoise(X1+ActorLocation.X,Y1+ActorLocation.Y) };
+	Vertices[QuadIndex+4] = Vertices[QuadIndex];
+	Vertices[QuadIndex+5] = Vertices[QuadIndex+3];
+	
+	TArray<int32> Triangles = MeshData.Triangles;
+	
+	const int TriangleIndex = Triangles.Num();
+	Triangles.SetNum(TriangleIndex + 6);
+	
+	Triangles[TriangleIndex] = QuadIndex;
+	Triangles[TriangleIndex+1] = QuadIndex+2;
+	Triangles[TriangleIndex+2] = QuadIndex+3;
+	
+	Triangles[TriangleIndex+3] = QuadIndex+4;
+	Triangles[TriangleIndex+4] = QuadIndex+5;
+	Triangles[TriangleIndex+5] = QuadIndex+1;
+
+	TArray<FVector2d> UV0 = MeshData.UV0;
+	
+	FRealtimeMeshSimpleMeshData NewMeshData = MeshData;
+	
+	NewMeshData.Positions = Vertices;
+	NewMeshData.Triangles = Triangles;
+	
+	return NewMeshData;
+}
+
+float ARMC_Chunk::getLayeredNoise(int seed, TArray<FNoiseStruct> noiseStructs, float x, float y)
 {
 	float noise = 0;
 	for (FNoiseStruct Noise : noiseStructs)
 	{
 		if(Noise.enable)
 		{
-			FastNoiseWrapper->SetupFastNoise(Noise.type, seed, Noise.frequency, EFastNoise_Interp::Quintic, EFastNoise_FractalType::FBM, 3, 2.0f);
+			NoiseWrapper->SetupFastNoise(Noise.type, seed, Noise.frequency, EFastNoise_Interp::Quintic, EFastNoise_FractalType::FBM, 3, 2.0f);
 			if(Noise.ridgeNoise)
 			{
-				noise += FMath::Abs((FastNoiseWrapper->GetNoise2D(x, y)*Noise.multiplier -0.5f) * 2.0f);
+				noise += FMath::Abs((NoiseWrapper->GetNoise2D(x, y)*Noise.multiplier -0.5f) * 2.0f);
 			}
 			else
-				noise += FastNoiseWrapper->GetNoise2D(x, y) * Noise.multiplier;
+				noise += NoiseWrapper->GetNoise2D(x, y) * Noise.multiplier;
 		}
 	}
 	return noise;
 }
 
-float ARMC_Chunk::getBiomNoise(float x, float y, int NoiseSeed, int BiomSeed,float BiomFrequency, TArray<FBiomStruct> BiomStructs, UFastNoiseWrapper* NoiseWrapper)
+float ARMC_Chunk::getBiomNoise(float x, float y)
 {
 	//HumidityNoise Map
 	NoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, BiomSeed, BiomFrequency);
 	float HumidityNoise = NoiseWrapper->GetNoise2D(x,y);
+	
 	//TemperatureNoise Map
 	NoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, BiomSeed + 23, BiomFrequency*10);
 	float TemperatureNoise = NoiseWrapper->GetNoise2D(x,y);
@@ -132,7 +148,7 @@ float ARMC_Chunk::getBiomNoise(float x, float y, int NoiseSeed, int BiomSeed,flo
 		if (BiomStruct.enable)
 		{
 			const float Weight = (HumidityNoise - BiomStruct.Humidity) + (TemperatureNoise - BiomStruct.Temperature);//(SineWaveWeightAlgorithm(HumidityNoise, BiomStruct.Humidity) + SineWaveWeightAlgorithm(TemperatureNoise, BiomStruct.Temperature)) / 2;
-			const float LayeredNoise = getLayeredNoise(NoiseSeed, BiomStruct.NoiseStructs, x, y, NoiseWrapper);
+			const float LayeredNoise = getLayeredNoise(NoiseSeed, BiomStruct.NoiseStructs, x, y);
 			NoiseWeightStructs.Add(FNoiseWeightStruct{Weight, LayeredNoise});
 		
 			SumWeights += Weight;
@@ -149,38 +165,7 @@ float ARMC_Chunk::getBiomNoise(float x, float y, int NoiseSeed, int BiomSeed,flo
 	return BiomNoise;
 }
 
-TArray<FVector> ARMC_Chunk::CalculateNormals(TArray<int32> Triangles, TArray<FVector> Vertices)
-{
-	TArray<FVector> Normals;
-	Normals.SetNum(Vertices.Num());
-	
-	int TriangleCount = Triangles.Num() / 3;
-	for (int i = 0; i < TriangleCount; i++)
-	{
-		int triangleIndex = i * 3;
-		FVector vertex1 = Vertices[Triangles[triangleIndex]];
-		FVector vertex2 = Vertices[Triangles[triangleIndex+1]];
-		FVector vertex3 = Vertices[Triangles[triangleIndex+2]];
-
-		FVector side1 = vertex2 - vertex1;
-		FVector side2 = vertex3 - vertex1;
-		
-		FVector TriangleNormal = side1.Cross(side2);
-		TriangleNormal.Normalize();
-		
-
-		Normals[Triangles[triangleIndex]] += TriangleNormal;
-		Normals[Triangles[triangleIndex + 1]] += TriangleNormal;
-		Normals[Triangles[triangleIndex + 2]] += TriangleNormal;
-	}
-	for (int i = 0; i < Vertices.Num(); i++)
-	{
-		Normals[i].Normalize();
-	}
-	return Normals;
-}
-
-TArray<int> ARMC_Chunk::GetTriangles(UDynamicMesh* DynamicMesh)
+TArray<int> ARMC_Chunk::GetDynamicMeshTriangles(UDynamicMesh* DynamicMesh)
 {
 	TArray<int> Triangles; 
 
@@ -203,7 +188,7 @@ void ARMC_Chunk::copyFromDynamicMesh(UDynamicMesh* DynamicMesh, bool bResetMesh)
 {
 	RealtimeMeshSimple = RealtimeMeshComponent->InitializeRealtimeMesh<URealtimeMeshSimple>();
 	
-	TArray<int> Triangles = GetTriangles(DynamicMesh);
+	TArray<int> Triangles = GetDynamicMeshTriangles(DynamicMesh);
 	
 
 	FGeometryScriptVectorList PositionList;
@@ -215,11 +200,6 @@ void ARMC_Chunk::copyFromDynamicMesh(UDynamicMesh* DynamicMesh, bool bResetMesh)
 	TArray<FVector2d> UV;
 	TArray<FVector> Normals;
 
-	/*TArray<int> IndexArray;
-	FGeometryScriptIndexList TriangleIDList;
-	bool bHasTriangleIDGap;
-	UGeometryScriptLibrary_MeshQueryFunctions::GetAllTriangleIDs(DynamicMesh, TriangleIDList, bHasTriangleIDGap);
-	UGeometryScriptLibrary_ListUtilityFunctions::ConvertIndexListToArray(TriangleIDList, IndexArray);*/
 	for (auto index : Triangles)
 	{
 		bool bIsValid;
@@ -251,21 +231,78 @@ void ARMC_Chunk::copyFromDynamicMesh(UDynamicMesh* DynamicMesh, bool bResetMesh)
 	RealtimeMeshSimple->SetCollisionConfig(config);
 	const FRealtimeMeshLODKey LODKey{0}; 
 	const FRealtimeMeshSectionConfig Config{}; 
-	const FRealtimeMeshSimpleMeshData MeshData{Triangles, Positions, NewNormals,Tangents};
-	RealtimeMeshSimple->CreateMeshSection(LODKey, Config, MeshData, true);
-	//RealtimeMeshSimple->UpdateCollision(true);
+	const FRealtimeMeshSimpleMeshData SimpleMeshData{Triangles, Positions, NewNormals,Tangents};
+	RealtimeMeshSimple->CreateMeshSection(LODKey, Config, SimpleMeshData, true);
 	RealtimeMeshSimple->SetupMaterialSlot(0,"None", Material);
 	DynamicMesh->Reset();
 }
 
-void ARMC_Chunk::generateTerrain(int ChunkSize, int Resolution1D, int NoiseSeed, int BiomSeed, float BiomFrequency, TArray<FBiomStruct> BiomStructs)
+void ARMC_Chunk::ConstructNextQuadSection()
 {
-	//URealtimeMeshSimpleGeometryFunctionLibrary::
-	//URealtimeMesh
+	if (X == Resolution1D)
+	{
+		Y++;
+		X = 0;
+	}
+	else
+		X++;
+	if(Y <= Resolution1D)
+	{
+		ConstructQuadSection();
+	}
+	//finishedConstructingQuads
+	else
+	{
+		MeshModifierNormals->CalculateNormalsTangents(MeshData);
+		RealtimeMeshSimple->UpdateSectionMesh(SectionKey, MeshData);
 
-	RealtimeMeshSimple = RealtimeMeshComponent->InitializeRealtimeMesh<URealtimeMeshSimple>();
+		GetWorld()->GetTimerManager().SetTimerForNextTick(ParentChunkSpawner, &AChunkSpawnerRMC::SpawnNextChunk);
+	}
+}
 
-	FRealtimeMeshSimpleMeshData MeshData = CalculateMeshData(ChunkSize, Resolution1D, NoiseSeed, BiomSeed, BiomFrequency, BiomStructs);
-	RealtimeMeshSimple->CreateMeshSection(0, FRealtimeMeshSectionConfig{ERealtimeMeshSectionDrawType::Static, 0}, MeshData, false);
+void ARMC_Chunk::ConstructQuadSection()
+{
+	UE_LOG(LogTemp, Warning, TEXT("NextQuad"));
 	
+	MeshData = GetMeshDataForQuad();
+	
+	//RealtimeMeshSimple->UpdateSectionMesh(SectionKey, MeshData);
+	
+	ConstructNextQuadSection();
+}
+
+void ARMC_Chunk::DebugTriangleNormals(int TriangleNumber)
+{
+	TArray<FVector> Vertices = MeshData.Positions;
+	TArray<int32> Triangles = MeshData.Triangles;
+	TArray<FVector> Normals = MeshData.Normals;
+	const int TriangleIndex = TriangleNumber*3;
+	
+	DebugVertexNormal(Normals[Triangles[TriangleIndex]], Vertices[Triangles[TriangleIndex]]);
+	DebugVertexNormal(Normals[Triangles[TriangleIndex+1]], Vertices[Triangles[TriangleIndex+1]]);
+	DebugVertexNormal(Normals[Triangles[TriangleIndex+1]], Vertices[Triangles[TriangleIndex+2]]);
+}
+
+void ARMC_Chunk::generateTerrain(int ovChunkSize, int ovResolution1D, int ovNoiseSeed, int ovBiomSeed, float ovBiomFrequency, TArray<FBiomStruct> ovBiomStructs)
+{
+	RealtimeMeshSimple = RealtimeMeshComponent->InitializeRealtimeMesh<URealtimeMeshSimple>();
+	RealtimeMeshSimple->SetupMaterialSlot(0,"None",Material);
+
+	NoiseWrapper = NewObject<UFastNoiseWrapper>();
+	MeshData = {};
+	ChunkSize = ovChunkSize;
+	Resolution1D = ovResolution1D;
+	NoiseSeed = ovNoiseSeed;
+	BiomSeed = ovBiomSeed;
+	BiomFrequency = ovBiomFrequency;
+	BiomStructs = ovBiomStructs;
+	
+	SectionKey = RealtimeMeshSimple->CreateMeshSection(0,FRealtimeMeshSectionConfig{ERealtimeMeshSectionDrawType::Dynamic,0}, MeshData, true);
+
+	X = 0;
+	Y = 0;
+	
+	//GetWorldTimerManager().SetTimer(TimerHandle, this, &ARMC_Chunk::ConstructQuadSection, 1.0f, true, 1.0f);
+	ConstructQuadSection();
+	//loop
 }

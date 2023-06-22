@@ -10,7 +10,8 @@
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
 				"GeometryFramework",
-				"Engine"
+				"Engine",
+				"CoreUObject"
 			]
 		}
 	],

@@ -30,9 +30,9 @@ AChunk::AChunk()
 	Plane->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	//GetDynamicMeshComponent()->EnableComplexAsSimpleCollision(); //TODO Collision
 
-	ChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("rmc"));
+	/*ChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("rmc"));
 	ChildActor->SetupAttachment(GetRootComponent());
-	ChildActor->SetChildActorClass(ARMC_Chunk::StaticClass());
+	ChildActor->SetChildActorClass(ARMC_Chunk::StaticClass());*/
 	
 }
 
