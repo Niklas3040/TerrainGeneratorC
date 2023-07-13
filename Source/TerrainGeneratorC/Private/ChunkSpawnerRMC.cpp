@@ -50,7 +50,7 @@ ARMC_Chunk* AChunkSpawnerRMC::SpawnChunk(FTransform Transform, int Index)
 	if(GetWorld())
 	{
 		bIsRunning = true;
-		UE_LOG(LogTemp, Warning,TEXT("chunk Created: %s"), *Transform.ToString())
+		//UE_LOG(LogTemp, Warning,TEXT("chunk Created: %s"), *Transform.ToString())
 		
 		ARMC_Chunk* Chunk = GetWorld()->SpawnActor<ARMC_Chunk>(ARMC_Chunk::StaticClass(), Transform);
 		Chunk->Material = ChunkMaterial;
@@ -73,7 +73,7 @@ ARMC_Chunk* AChunkSpawnerRMC::SpawnChunk(FTransform Transform, int Index)
 
 void AChunkSpawnerRMC::SpawnNextChunk()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Generate next Chunk"));
+	//UE_LOG(LogTemp, Warning, TEXT("Generate next Chunk"));
 	//ChunkIndex++;
 	if (RMCChunkPositionsToLoad.IsValidIndex(ChunkIndex))
 	{
@@ -82,7 +82,7 @@ void AChunkSpawnerRMC::SpawnNextChunk()
 	else
 	{
 		bIsRunning = false;
-		UE_LOG(LogTemp, Warning, TEXT("Index not Valid!"));
+		//UE_LOG(LogTemp, Warning, TEXT("Index not Valid!"));
 	}
 }
 
@@ -107,7 +107,7 @@ void AChunkSpawnerRMC::CalculateChunkPositions()
 					if (Distance2D < ChunkRenderDistance )
 					{
 						RMCChunkPositionsToLoad.Add(ChunkVector);
-						UE_LOG(LogTemp, Warning,TEXT("Added Position: %s  ") ,*ChunkVector.ToString());	
+						//UE_LOG(LogTemp, Warning,TEXT("Added Position: %s  ") ,*ChunkVector.ToString());	
 					}
 				}
 			}
@@ -149,7 +149,7 @@ FVector AChunkSpawnerRMC::RoundDownToChunkSize(FVector Vector)
 void AChunkSpawnerRMC::RemoveChunkFromPositionList(FVector Vector)
 {
 	LoadedChunks.Remove(Vector);
-	UE_LOG(LogTemp, Warning, TEXT("Added Vector with Position: %s"), *Vector.ToString());
+	//UE_LOG(LogTemp, Warning, TEXT("Added Vector with Position: %s"), *Vector.ToString());
 }
 
 void AChunkSpawnerRMC::RemoveFoliagePositionByIndex(int Index)

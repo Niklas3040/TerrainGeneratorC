@@ -19,7 +19,7 @@ ARMC_Chunk::ARMC_Chunk()
 {
 	RealtimeMeshComponent = CreateDefaultSubobject<URealtimeMeshComponent>(TEXT("RMC_Component"));
 	RealtimeMeshComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	MeshModifierNormals = NewObject<URuntimeMeshModifierNormals>();
+	MeshModifierNormals = NewObject<URuntimeMeshModifierNormals>(); //REMOVE
 
 	Plane = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Plane"));
 	Plane->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
@@ -65,30 +65,8 @@ void ARMC_Chunk::DebugVertexNormal(FVector Normal, FVector Vertex) const
 	UKismetSystemLibrary::DrawDebugArrow(GetWorld(),VertexWorldLocation,Normal * 300.0f + VertexWorldLocation,1.0f,FLinearColor::Blue, 100.0f, 2.0f );
 }
 
-FRealtimeMeshSimpleMeshData ARMC_Chunk::GetMeshDataForQuad()
+void ARMC_Chunk::SetQuadTriangles(const int QuadIndex, TArray<int32>& Triangles)
 {
-	
-	const int QuadSize = ChunkSize/Resolution1D;
-	const FVector ActorLocation = GetActorLocation();
-	double x = X * QuadSize;
-	double y = Y * QuadSize;
-	double X1 = (X+1) * QuadSize;
-	double Y1 = (Y+1) * QuadSize;
-
-	TArray<FVector> Vertices = MeshData.Positions;
-	
-	const int QuadIndex = Vertices.Num();
-	Vertices.SetNum(QuadIndex + 6);
-	Vertices[QuadIndex] =	FVector{x, y, getBiomNoise(x+ActorLocation.X,y+ActorLocation.Y) };
-	Vertices[QuadIndex+1] = FVector{X1, y, getBiomNoise(X1+ActorLocation.X,y+ActorLocation.Y) };
-	Vertices[QuadIndex+2] = FVector{x, Y1, getBiomNoise(x+ActorLocation.X,Y1+ActorLocation.Y) };
-	
-	Vertices[QuadIndex+3] = FVector{X1, Y1, getBiomNoise(X1+ActorLocation.X,Y1+ActorLocation.Y) };
-	Vertices[QuadIndex+4] = Vertices[QuadIndex];
-	Vertices[QuadIndex+5] = Vertices[QuadIndex+3];
-	
-	TArray<int32> Triangles = MeshData.Triangles;
-	
 	const int TriangleIndex = Triangles.Num();
 	Triangles.SetNum(TriangleIndex + 6);
 	
@@ -96,21 +74,64 @@ FRealtimeMeshSimpleMeshData ARMC_Chunk::GetMeshDataForQuad()
 	Triangles[TriangleIndex+1] = QuadIndex+2;
 	Triangles[TriangleIndex+2] = QuadIndex+3;
 	
-	Triangles[TriangleIndex+3] = QuadIndex+4;
-	Triangles[TriangleIndex+4] = QuadIndex+5;
-	Triangles[TriangleIndex+5] = QuadIndex+1;
+	Triangles[TriangleIndex+3] = QuadIndex+4;		
+	Triangles[TriangleIndex+4] = QuadIndex+5;	
+	Triangles[TriangleIndex+5] = QuadIndex+1;	
+}
 
-	TArray<FVector2d> UV0 = MeshData.UV0;
+void ARMC_Chunk::SetQuadVertices(const FVector& ActorLocation, const double X, const double Y, const double X1, const double Y1, TArray<FVector>& Vertices, const int QuadIndex, UFastNoiseWrapper* FastNoiseWrapper, TArray<FBiomStruct> ovBiomStructs, float ovNoiseSeed, float ovBiomSeed,
+											float ovBiomFrequency, TArray<FLinearColor>& Colors)
+{
+	FLinearColor BiomeColor {0.0f,0.0f,255.0f,1.0f};
+	Vertices.SetNum(QuadIndex + 6);
+	Vertices[QuadIndex] = FVector{X, Y, getNewBiomNoise(X+ActorLocation.X,Y+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+	Colors.Add(BiomeColor);
+	const FLinearColor VertexColor0 = BiomeColor;
+	Vertices[QuadIndex+1] = FVector{X1, Y, getNewBiomNoise(X1+ActorLocation.X,Y+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+	Colors.Add(BiomeColor);
+	Vertices[QuadIndex+2] = FVector{X, Y1, getNewBiomNoise(X+ActorLocation.X,Y1+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+	Colors.Add(BiomeColor);
+	Vertices[QuadIndex+3] = FVector{X1, Y1, getNewBiomNoise(X1+ActorLocation.X,Y1+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+	Colors.Add(BiomeColor);
+	const FLinearColor VertexColor3 = BiomeColor;
+	Vertices[QuadIndex+4] = Vertices[QuadIndex];
+	Colors.Add(VertexColor0);
+	Vertices[QuadIndex+5] = Vertices[QuadIndex+3];
+	Colors.Add(VertexColor3);
+}
+
+FRealtimeMeshSimpleMeshData ARMC_Chunk::GetMeshDataForAllQuads(	int ovChunkSize, int ovResolution1D, TArray<FBiomStruct> ovBiomStructs, float ovNoiseSeed, float ovBiomSeed, float ovBiomFrequency)
+{
+	UFastNoiseWrapper* FastNoiseWrapper = NewObject<UFastNoiseWrapper>();
 	
-	FRealtimeMeshSimpleMeshData NewMeshData = MeshData;
-	
+	const int QuadSize = ovChunkSize/ovResolution1D;
+	const FVector ActorLocation = GetActorLocation();
+	FRealtimeMeshSimpleMeshData NewMeshData;
+	TArray<FVector> Vertices;
+	TArray<int32> Triangles;
+	TArray<FLinearColor> Colors;
+
+	int x, y;
+	for (int i = 0; i < ovResolution1D * ovResolution1D; i++)
+	{
+		x = i % ovResolution1D;
+		y = i / ovResolution1D;
+		
+		const int QuadIndex = Vertices.Num();
+		SetQuadVertices(ActorLocation, x * QuadSize, y * QuadSize, (x+1) * QuadSize, (y+1) * QuadSize, Vertices, QuadIndex, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, Colors);
+		
+		SetQuadTriangles(QuadIndex, Triangles);
+	}
 	NewMeshData.Positions = Vertices;
 	NewMeshData.Triangles = Triangles;
+	NewMeshData.LinearColors = Colors;
 	
+	URuntimeMeshModifierNormals* NormalsModifier = NewObject<URuntimeMeshModifierNormals>();
+	NormalsModifier->CalculateNormalsTangents(NewMeshData);
 	return NewMeshData;
 }
 
-float ARMC_Chunk::getLayeredNoise(int seed, TArray<FNoiseStruct> noiseStructs, float x, float y)
+float ARMC_Chunk::getLayeredNoise(int seed, TArray<FNoiseStruct> noiseStructs, float x, float y, UFastNoiseWrapper* NoiseWrapper)
 {
 	float noise = 0;
 	for (FNoiseStruct Noise : noiseStructs)
@@ -129,28 +150,29 @@ float ARMC_Chunk::getLayeredNoise(int seed, TArray<FNoiseStruct> noiseStructs, f
 	return noise;
 }
 
-float ARMC_Chunk::getBiomNoise(float x, float y)
+float ARMC_Chunk::getBiomNoise(float x, float y, UFastNoiseWrapper* FastNoiseWrapper, TArray<FBiomStruct> ovBiomStructs, float ovNoiseSeed, float ovBiomSeed,
+											float ovBiomFrequency, FLinearColor& BiomeColor)
 {
 	//HumidityNoise Map
-	NoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, BiomSeed, BiomFrequency);
-	float HumidityNoise = NoiseWrapper->GetNoise2D(x,y);
+	FastNoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, ovBiomSeed, ovBiomFrequency);
+	float HumidityNoise = FastNoiseWrapper->GetNoise2D(x,y);
 	
 	//TemperatureNoise Map
-	NoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, BiomSeed + 23, BiomFrequency*10);
-	float TemperatureNoise = NoiseWrapper->GetNoise2D(x,y);
+	FastNoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, ovBiomSeed + 23, ovBiomFrequency*10);
+	float TemperatureNoise = FastNoiseWrapper->GetNoise2D(x,y);
 
 	
 	float SumWeights = 0;
 	TArray<FNoiseWeightStruct> NoiseWeightStructs;
 	
-	for (FBiomStruct BiomStruct : BiomStructs)
+	for (FBiomStruct BiomStruct : ovBiomStructs)
 	{
 		if (BiomStruct.enable)
 		{
 			const float Weight = (HumidityNoise - BiomStruct.Humidity) + (TemperatureNoise - BiomStruct.Temperature);//(SineWaveWeightAlgorithm(HumidityNoise, BiomStruct.Humidity) + SineWaveWeightAlgorithm(TemperatureNoise, BiomStruct.Temperature)) / 2;
-			const float LayeredNoise = getLayeredNoise(NoiseSeed, BiomStruct.NoiseStructs, x, y);
-			NoiseWeightStructs.Add(FNoiseWeightStruct{Weight, LayeredNoise});
-		
+			const float LayeredNoise = getLayeredNoise(ovNoiseSeed, BiomStruct.NoiseStructs, x, y, FastNoiseWrapper);
+			NoiseWeightStructs.Add(FNoiseWeightStruct{Weight, LayeredNoise, BiomStruct.Color});
+			
 			SumWeights += Weight;
 		}
 	}
@@ -161,7 +183,80 @@ float ARMC_Chunk::getBiomNoise(float x, float y)
 
 		const float actualNoise = WeightStruct.Noise * actualWeight;
 		BiomNoise += actualNoise;
+		BiomeColor = UKismetMathLibrary::LinearColorLerp(WeightStruct.Color, BiomeColor, FMath::Clamp(actualWeight,0,1));
 	}
+	return BiomNoise;
+}
+
+float ARMC_Chunk::getNewBiomNoise(float x, float y, UFastNoiseWrapper* FastNoiseWrapper,
+	TArray<FBiomStruct> ovBiomStructs, float ovNoiseSeed, float ovBiomSeed, float ovBiomFrequency,
+	FLinearColor& BiomeColor)
+{
+	float transition = 0.7f;
+	
+	//HumidityNoise Map
+	FastNoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, ovBiomSeed, ovBiomFrequency);
+	float HumidityNoise = FastNoiseWrapper->GetNoise2D(x,y);
+	
+	//TemperatureNoise Map
+	FastNoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, ovBiomSeed + 23, ovBiomFrequency*2);
+	float TemperatureNoise = FastNoiseWrapper->GetNoise2D(x,y);
+
+
+	const FBiomStruct BaseLayer = BiomStructs[0];
+	/*float SumWeights = 0;
+	TArray<FNoiseWeightStruct> NoiseWeightStructs;
+	
+	for (FBiomStruct BiomStruct : ovBiomStructs)
+	{
+		if (BiomStruct.enable)
+		{
+			const float Weight = (HumidityNoise - BiomStruct.Humidity) + (TemperatureNoise - BiomStruct.Temperature);//(SineWaveWeightAlgorithm(HumidityNoise, BiomStruct.Humidity) + SineWaveWeightAlgorithm(TemperatureNoise, BiomStruct.Temperature)) / 2;
+			const float LayeredNoise = getLayeredNoise(ovNoiseSeed, BiomStruct.NoiseStructs, x, y, FastNoiseWrapper);
+			NoiseWeightStructs.Add(FNoiseWeightStruct{Weight, LayeredNoise, BiomStruct.Color});
+			
+			SumWeights += Weight;
+		}
+	}
+	float BiomNoise = 0;
+	for (FNoiseWeightStruct WeightStruct : NoiseWeightStructs)
+	{
+		float actualWeight = FMath::Clamp(WeightStruct.weight/ SumWeights,-2,2);//WeightStruct.weight/ SumWeights; //Clamp Artifact Workaround (Kein plan was da abgeht aber bei Übergängen von Biomen gibt es Artifakte, da actualWeight und Sumweight da kleiner als 1 sind (TODO)
+
+		const float actualNoise = WeightStruct.Noise * actualWeight;
+		BiomNoise += actualNoise;
+		BiomeColor = UKismetMathLibrary::LinearColorLerp(WeightStruct.Color, BiomeColor, FMath::Clamp(actualWeight,0,1));
+	}*/
+	const float BaseLayerNoise = getLayeredNoise(ovNoiseSeed, BaseLayer.NoiseStructs, x, y, FastNoiseWrapper);
+
+	float BiomNoise = 0.0f;
+	
+	BiomNoise = BaseLayerNoise;
+	BiomeColor = BaseLayer.Color;
+	for (int i = 1; i < ovBiomStructs.Num(); i++)
+	{
+		FBiomStruct BiomStruct = ovBiomStructs[i];
+		if (BiomStruct.enable)
+		{
+			float HBiomeStart = BiomStruct.Humidity - BiomStruct.transition;
+			float HBiomeEnd = BiomStruct.Humidity + BiomStruct.transition;
+
+			float TBiomeStart = BiomStruct.Temperature - BiomStruct.transition;
+			float TBiomeEnd = BiomStruct.Temperature + BiomStruct.transition;
+	
+			if ((HumidityNoise < HBiomeEnd) && (HumidityNoise > HBiomeStart) && (TemperatureNoise < TBiomeEnd) && (TemperatureNoise > TBiomeStart))
+			{
+				const float BiomStructNoise = getLayeredNoise(ovNoiseSeed, BiomStruct.NoiseStructs, x, y, FastNoiseWrapper);
+				BiomNoise = BiomStructNoise + BaseLayerNoise;
+				BiomeColor = BiomStruct.Color;
+				UE_LOG(LogTemp, Warning, TEXT("BiomVertex Found for Biome %s!"),*BiomStruct.BiomName);
+			}
+		}
+	}
+	return BiomNoise;
+
+	//const FBiomStruct Biome1 = BiomStructs[1];
+
 	return BiomNoise;
 }
 
@@ -237,41 +332,7 @@ void ARMC_Chunk::copyFromDynamicMesh(UDynamicMesh* DynamicMesh, bool bResetMesh)
 	DynamicMesh->Reset();
 }
 
-void ARMC_Chunk::ConstructNextQuadSection()
-{
-	if (X == Resolution1D)
-	{
-		Y++;
-		X = 0;
-	}
-	else
-		X++;
-	if(Y <= Resolution1D)
-	{
-		ConstructQuadSection();
-	}
-	//finishedConstructingQuads
-	else
-	{
-		MeshModifierNormals->CalculateNormalsTangents(MeshData);
-		RealtimeMeshSimple->UpdateSectionMesh(SectionKey, MeshData);
-
-		GetWorld()->GetTimerManager().SetTimerForNextTick(ParentChunkSpawner, &AChunkSpawnerRMC::SpawnNextChunk);
-	}
-}
-
-void ARMC_Chunk::ConstructQuadSection()
-{
-	UE_LOG(LogTemp, Warning, TEXT("NextQuad"));
-	
-	MeshData = GetMeshDataForQuad();
-	
-	//RealtimeMeshSimple->UpdateSectionMesh(SectionKey, MeshData);
-	
-	ConstructNextQuadSection();
-}
-
-void ARMC_Chunk::DebugTriangleNormals(int TriangleNumber)
+/*void ARMC_Chunk::DebugTriangleNormals(int TriangleNumber)
 {
 	TArray<FVector> Vertices = MeshData.Positions;
 	TArray<int32> Triangles = MeshData.Triangles;
@@ -281,28 +342,52 @@ void ARMC_Chunk::DebugTriangleNormals(int TriangleNumber)
 	DebugVertexNormal(Normals[Triangles[TriangleIndex]], Vertices[Triangles[TriangleIndex]]);
 	DebugVertexNormal(Normals[Triangles[TriangleIndex+1]], Vertices[Triangles[TriangleIndex+1]]);
 	DebugVertexNormal(Normals[Triangles[TriangleIndex+1]], Vertices[Triangles[TriangleIndex+2]]);
+}*/
+
+void ARMC_Chunk::NavMeshFix()
+{
+	FVector ActorLocation = GetActorLocation();
+	SetActorLocation({ActorLocation.X, ActorLocation.Y, ActorLocation.Z + 1.0f });
+	SetActorLocation(ActorLocation);
 }
 
 void ARMC_Chunk::generateTerrain(int ovChunkSize, int ovResolution1D, int ovNoiseSeed, int ovBiomSeed, float ovBiomFrequency, TArray<FBiomStruct> ovBiomStructs)
 {
 	RealtimeMeshSimple = RealtimeMeshComponent->InitializeRealtimeMesh<URealtimeMeshSimple>();
 	RealtimeMeshSimple->SetupMaterialSlot(0,"None",Material);
-
-	NoiseWrapper = NewObject<UFastNoiseWrapper>();
-	MeshData = {};
+	
 	ChunkSize = ovChunkSize;
 	Resolution1D = ovResolution1D;
-	NoiseSeed = ovNoiseSeed;
+	BiomStructs = ovBiomStructs;
 	BiomSeed = ovBiomSeed;
 	BiomFrequency = ovBiomFrequency;
-	BiomStructs = ovBiomStructs;
-	
+	NoiseSeed = ovNoiseSeed;
+
+	/*AsyncTask(ENamedThreads::AnyThread, [this]()
+	{
+		FScopeLock Lock(&DataGuard);
+		MeshData = GetMeshDataForAllQuads(ChunkSize, Resolution1D, BiomStructs, NoiseSeed, BiomSeed, BiomFrequency);
+		AsyncTask(ENamedThreads::GameThread, [this]()
+		{
+			SectionKey = RealtimeMeshSimple->CreateMeshSection(0,FRealtimeMeshSectionConfig{ERealtimeMeshSectionDrawType::Static,0}, MeshData, true);
+			ParentChunkSpawner->SpawnNextChunk();
+		});
+	});*/
+	FRealtimeMeshCollisionConfiguration config;
+	config.bUseAsyncCook = true;
+	config.bUseComplexAsSimpleCollision = true;
+	config.bShouldFastCookMeshes = true;
+	RealtimeMeshSimple->SetCollisionConfig(config);
+	MeshData = GetMeshDataForAllQuads(ChunkSize, Resolution1D, BiomStructs, NoiseSeed, BiomSeed, BiomFrequency);
 	SectionKey = RealtimeMeshSimple->CreateMeshSection(0,FRealtimeMeshSectionConfig{ERealtimeMeshSectionDrawType::Dynamic,0}, MeshData, true);
 
-	X = 0;
-	Y = 0;
+	RealtimeMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	FVector ActorLocation = GetActorLocation();
+	SetActorLocation({ActorLocation.X, ActorLocation.Y, ActorLocation.Z + 200.0f });
 	
-	//GetWorldTimerManager().SetTimer(TimerHandle, this, &ARMC_Chunk::ConstructQuadSection, 1.0f, true, 1.0f);
-	ConstructQuadSection();
-	//loop
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &ARMC_Chunk::NavMeshFix, 1.0f, false, 1.0f);
+	//NavMeshFix();
+	
+	GetWorld()->GetTimerManager().SetTimerForNextTick(ParentChunkSpawner, &AChunkSpawnerRMC::SpawnNextChunk);
+	//ParentChunkSpawner->SpawnNextChunk();
 }

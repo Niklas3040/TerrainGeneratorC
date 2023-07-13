@@ -43,6 +43,10 @@ public:
 	float Humidity;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Temperature;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FLinearColor Color = {0.0f,0.0f,0.0f,0.0f};
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float transition = 0.7f;
 };
 
 USTRUCT()
@@ -51,6 +55,7 @@ struct FNoiseWeightStruct
 	GENERATED_BODY()
 	float weight;
 	float Noise;
+	FLinearColor Color = {};
 };
 
 USTRUCT(BlueprintType)

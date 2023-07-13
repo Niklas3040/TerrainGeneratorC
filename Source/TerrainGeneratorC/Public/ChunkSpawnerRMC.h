@@ -18,15 +18,15 @@ public:
 	// Sets default values for this actor's properties
 	AChunkSpawnerRMC();
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int ChunkSize = 2000;
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int Seed = 150518;
 	UPROPERTY(EditAnywhere)
 	int Row = 32;
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int Resolution = 16;
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float BiomFrequency = 0.000005f;
 	UPROPERTY(EditAnywhere)
 	TArray<FBiomStruct> BiomStructs;
