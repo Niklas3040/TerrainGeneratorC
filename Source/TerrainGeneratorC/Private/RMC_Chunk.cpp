@@ -83,20 +83,35 @@ void ARMC_Chunk::SetQuadVertices(const FVector& ActorLocation, const double X, c
 											float ovBiomFrequency, TArray<FLinearColor>& Colors)
 {
 	FLinearColor BiomeColor {0.0f,0.0f,255.0f,1.0f};
+	
 	Vertices.SetNum(QuadIndex + 6);
+	
 	Vertices[QuadIndex] = FVector{X, Y, getNewBiomNoise(X+ActorLocation.X,Y+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+
 	Colors.Add(BiomeColor);
+	
 	const FLinearColor VertexColor0 = BiomeColor;
+	
 	Vertices[QuadIndex+1] = FVector{X1, Y, getNewBiomNoise(X1+ActorLocation.X,Y+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+
 	Colors.Add(BiomeColor);
+	
 	Vertices[QuadIndex+2] = FVector{X, Y1, getNewBiomNoise(X+ActorLocation.X,Y1+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+
 	Colors.Add(BiomeColor);
+	
 	Vertices[QuadIndex+3] = FVector{X1, Y1, getNewBiomNoise(X1+ActorLocation.X,Y1+ActorLocation.Y, FastNoiseWrapper, ovBiomStructs, ovNoiseSeed, ovBiomSeed, ovBiomFrequency, BiomeColor) };
+
 	Colors.Add(BiomeColor);
+	
 	const FLinearColor VertexColor3 = BiomeColor;
+	
 	Vertices[QuadIndex+4] = Vertices[QuadIndex];
+	
 	Colors.Add(VertexColor0);
+	
 	Vertices[QuadIndex+5] = Vertices[QuadIndex+3];
+	
 	Colors.Add(VertexColor3);
 }
 
